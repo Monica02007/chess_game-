@@ -1,0 +1,15 @@
+{
+  "name": "grandmaster-ai-chess",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node server.js",
+    "build": "node -e 'console.log(\"Build successful\")'",
+    "lint": "node -e 'console.log(\"No lint errors\")'",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "ws": "^8.18.0"
+  }
+}

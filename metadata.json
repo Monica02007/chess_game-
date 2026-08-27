@@ -1,0 +1,10 @@
+{
+  "name": "Grandmaster AI Chess",
+  "description": "Play chess against AI with tactical step-by-step guidance, female voice coach Aria, minimax decision tree visualizer, and online 2-player real-time multiplayer.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
