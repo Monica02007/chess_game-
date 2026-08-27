@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Grandmaster AI Chess — vs AI & Online Multiplayer with Voice Coach</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0fdf4',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    body { font-family: 'Outfit', sans-serif; }
+    code, .font-mono { font-family: 'JetBrains Mono', monospace; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+    ::-webkit-scrollbar-thumb { background: rgba(71, 85, 105, 0.8); border-radius: 9999px; }
+  </style>
+</head>
+
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col selection:bg-pink-500 selection:text-white">
+  
+  <!-- Top Header -->
+  <header class="border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-md sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-pink-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-pink-500/20 text-white font-black text-xl">
+          ♟
+        </div>
+        <div>
+          <h1 class="text-lg font-bold tracking-tight bg-gradient-to-r from-white via-slate-200 to-pink-400 bg-clip-text text-transparent">
+            Grandmaster AI Chess
+          </h1>
+          <p class="text-[11px] text-slate-400 font-medium">Play vs AI • Lady Voice Coach • Online 2-Player</p>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <div class="flex items-center gap-1.5 bg-slate-950/80 p-1 rounded-xl border border-slate-800">
+        <button data-tab="game" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all bg-sky-600 text-white shadow-sm">
+          Play vs AI / Match
+        </button>
+        <button data-tab="coach" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all bg-slate-800 text-slate-400 hover:text-white">
+          Voice Coach & Steps
+        </button>
+        <button data-tab="tree" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all bg-slate-800 text-slate-400 hover:text-white">
+          Minimax Decision Tree
+        </button>
+        <button data-tab="lobby" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all bg-slate-800 text-slate-400 hover:text-white">
+          Online 2P Lobby
+        </button>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <div class="hidden sm:flex items-center gap-2 px-3 py-1 bg-slate-900 rounded-full border border-slate-800 text-xs">
+          <span id="ws-status-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500"></span>
+          <span id="ws-status-text" class="text-slate-300 font-mono">Ready</span>
+        </div>
+
+        <button id="btn-flip-board" title="Flip Board" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors">
+          <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Game Layout -->
+  <main class="max-w-7xl mx-auto px-4 py-6 flex-1 w-full">
+    
+    <!-- TAB 1: PLAY VS AI / LIVE MATCH -->
+    <div id="tab-game" class="tab-content grid grid-cols-1 lg:grid-cols-12 gap-6">
+      
+      <!-- Left Column: Board & Primary Controls -->
+      <div class="lg:col-span-8 flex flex-col sm:flex-row items-center sm:items-start justify-center gap-4">
+        
+        <!-- Eval Bar -->
+        <div class="hidden sm:flex flex-col items-center h-[520px] w-8 bg-slate-900 rounded-xl overflow-hidden border border-slate-800 relative shadow-inner">
+          <div id="eval-bar-fill" class="w-full bg-emerald-500 transition-all duration-300" style="height: 50%;"></div>
+          <span id="eval-score-text" class="absolute top-2 text-[10px] font-mono font-bold text-slate-300 bg-slate-950/80 px-1 rounded">0.0</span>
+        </div>
+
+        <!-- Chessboard Column -->
+        <div class="flex flex-col items-center w-full max-w-[520px]">
+          
+          <!-- Top Player Card (AI) -->
+          <div id="player-card-black" class="flex items-center justify-between w-full px-4 py-2.5 bg-slate-900/80 backdrop-blur rounded-xl border border-slate-800 mb-2">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-slate-300">
+                🤖
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="player-name font-semibold text-sm text-slate-200">AI Opponent</span>
+                  <span id="ai-diff-badge" class="px-1.5 py-0.5 bg-sky-500/20 text-sky-300 border border-sky-500/30 rounded text-[10px] font-semibold">Level: MEDIUM</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <div id="captured-white" class="flex items-center gap-0.5 text-xs text-slate-400"></div>
+                  <span id="ai-status-indicator" class="text-[11px] text-emerald-400 font-semibold">Your turn to move</span>
+                </div>
+              </div>
+            </div>
+            <div id="clock-black" class="px-3 py-1 bg-slate-950 rounded-lg font-mono text-base font-bold text-emerald-400 border border-slate-800">
+              5:00
+            </div>
+          </div>
+
+          <!-- Board Container -->
+          <div id="board-container" class="w-full aspect-square max-w-[520px] flex justify-center"></div>
+
+          <!-- Bottom Player Card (You) -->
+          <div id="player-card-white" class="flex items-center justify-between w-full px-4 py-2.5 bg-slate-900/80 backdrop-blur rounded-xl border border-slate-800 mt-2">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-white">
+                ♔
+              </div>
+              <div>
+                <div class="player-name font-semibold text-sm text-white">You (White)</div>
+                <div id="captured-black" class="flex items-center gap-0.5 text-xs text-slate-400"></div>
+              </div>
+            </div>
+            <div id="clock-white" class="px-3 py-1 bg-slate-950 rounded-lg font-mono text-base font-bold text-emerald-400 border border-slate-800">
+              5:00
+            </div>
+          </div>
+
+          <!-- Board Actions Bar -->
+          <div class="flex flex-col w-full mt-3 gap-2 bg-slate-900/80 p-3 rounded-2xl border border-slate-800 shadow-lg">
+            
+            <!-- Quick Action Row -->
+            <div class="flex items-center gap-2">
+              <button id="btn-ask-aria-quick" onclick="window.app.predictBestMove()" class="flex-1 py-2.5 px-3 bg-gradient-to-r from-pink-600 via-rose-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-pink-600/20 transition flex items-center justify-center gap-1.5">
+                <span>🔮</span> Predict Best Move
+              </button>
+              
+              <button id="btn-play-recommended-quick" onclick="if(window.app.currentAnalysis && window.app.currentAnalysis.bestMove && window.app.isMyTurn()){ window.app.onUserMove(window.app.currentAnalysis.bestMove.from, window.app.currentAnalysis.bestMove.to); }" class="flex-1 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/20 transition flex items-center justify-center gap-1.5">
+                <span>▶️</span> Play Recommended Move
+              </button>
+            </div>
+
+            <!-- Settings & Match Controls Row -->
+            <div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-800/80 text-xs">
+              <div class="flex items-center gap-1.5 bg-slate-950 p-1 rounded-lg border border-slate-800">
+                <span class="text-[10px] font-bold text-slate-400 uppercase px-1">Side:</span>
+                <button id="btn-play-white" class="px-2.5 py-1 rounded font-bold bg-white text-slate-900 text-xs transition">White</button>
+                <button id="btn-play-black" class="px-2.5 py-1 rounded font-bold bg-slate-800 text-slate-300 text-xs transition">Black</button>
+              </div>
+
+              <div class="flex items-center gap-1.5 bg-slate-950 p-1 rounded-lg border border-slate-800">
+                <span class="text-[10px] font-bold text-slate-400 uppercase px-1">AI:</span>
+                <select id="ai-difficulty-select" class="bg-slate-900 border border-slate-700 rounded px-2 py-0.5 text-xs text-emerald-400 font-semibold focus:outline-none">
+                  <option value="easy">Easy</option>
+                  <option value="medium" selected>Medium</option>
+                  <option value="hard">Hard</option>
+                  <option value="master">Grandmaster</option>
+                </select>
+              </div>
+
+              <div class="flex items-center gap-1.5">
+                <button id="btn-offer-draw" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-semibold text-slate-300 transition">
+                  Draw
+                </button>
+                <button id="btn-resign" class="px-2.5 py-1.5 bg-red-950/60 hover:bg-red-900/80 border border-red-800/60 rounded-lg text-xs font-semibold text-red-300 transition">
+                  Resign
+                </button>
+                <button id="btn-reset-board" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-bold text-slate-200 transition">
+                  Restart
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- Right Column: Aria Coach Card -->
+      <div class="lg:col-span-4 flex flex-col gap-4">
+        
+        <!-- Voice Coach Card -->
+        <div class="bg-slate-900/80 backdrop-blur rounded-2xl border border-slate-800 p-4 shadow-xl flex flex-col gap-3">
+          
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="relative">
+                <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-pink-500 via-rose-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg shadow-md shadow-pink-500/20">
+                  👩‍💼
+                </div>
+                <span class="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 border-2 border-slate-900 rounded-full"></span>
+              </div>
+              <div>
+                <h3 class="font-bold text-sm text-white">Grandmaster Aria</h3>
+                <p id="coach-status-text" class="text-[11px] text-pink-300 font-medium">Lady Voice Coach • Ready</p>
+              </div>
+            </div>
+
+            <span id="coach-tactical-badge" class="px-2.5 py-1 bg-pink-500/20 border border-pink-500/40 text-pink-300 text-[10px] font-bold rounded-full uppercase tracking-wider">
+              Lady Coach
+            </span>
+          </div>
+
+          <div class="w-full h-14 rounded-xl overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center">
+            <canvas id="voice-waveform" width="340" height="56" class="w-full h-full"></canvas>
+          </div>
+
+          <div id="coach-speech-text" class="p-3 bg-slate-950/80 rounded-xl border border-slate-800/80 text-xs text-slate-300 leading-relaxed max-h-[110px] overflow-y-auto">
+            <strong>Aria:</strong> Ready! Tap any piece to move it, or click <strong>"🔮 Predict Best Move"</strong> above whenever you want me to analyze the board and give lady voice advice.
+          </div>
+
+          <div class="flex items-center gap-2 pt-1">
+            <button id="btn-voice-mic" class="flex-1 py-2 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition flex items-center justify-center gap-1.5">
+              <i data-lucide="mic" class="w-4 h-4"></i>
+              <span>Ask Coach with Mic</span>
+            </button>
+          </div>
+
+        </div>
+
+        <!-- Step-by-Step Tactical Breakdown Card -->
+        <div class="bg-slate-900/80 backdrop-blur rounded-2xl border border-slate-800 p-4 shadow-xl flex flex-col gap-3 flex-1">
+          <div class="flex items-center justify-between">
+            <h4 class="font-bold text-xs uppercase tracking-wider text-slate-400">Step-by-Step Tactical Plan</h4>
+            <div id="turn-indicator" class="flex items-center gap-1.5 text-xs text-slate-300">
+              <span class="w-2 h-2 rounded-full bg-white"></span>
+              <span>White to Move</span>
+            </div>
+          </div>
+
+          <div id="coach-steps-list" class="flex flex-col gap-2 flex-1 overflow-y-auto max-h-[180px]">
+            <div class="flex items-start gap-2 text-xs text-slate-300 bg-slate-900/60 p-2.5 rounded-lg border border-slate-800/80">
+              <span class="w-2 h-2 rounded-full bg-pink-400 mt-1.5 shrink-0"></span>
+              <span>Click "🔮 Predict Best Move" above anytime to calculate the best tactical step.</span>
+            </div>
+          </div>
+
+          <div class="pt-2 border-t border-slate-800">
+            <h5 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Notation History</h5>
+            <div id="move-history-list" class="max-h-[100px] overflow-y-auto bg-slate-950/90 rounded-xl p-2 border border-slate-800">
+              <div class="text-xs text-slate-400 py-1 text-center font-mono">No moves played yet.</div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- TAB 2: VOICE COACH GUIDE -->
+    <div id="tab-coach" class="tab-content hidden max-w-4xl mx-auto flex flex-col gap-6">
+      <div class="bg-slate-900/80 p-6 rounded-2xl border border-slate-800 shadow-xl">
+        <h2 class="text-xl font-bold text-white mb-2 flex items-center gap-2">
+          <span>🎙️</span> Grandmaster Aria Voice Assistant Guide
+        </h2>
+        <p class="text-sm text-slate-300 mb-6">
+          Grandmaster Aria uses an on-demand lady voice to evaluate positions and explain strategic moves only when you request advice.
+        </p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="p-4 bg-slate-950 rounded-xl border border-slate-800 flex flex-col gap-2">
+            <h4 class="font-bold text-sm text-pink-400 flex items-center gap-1.5">
+              <span>🗣️</span> Voice Commands You Can Say:
+            </h4>
+            <ul class="text-xs text-slate-300 space-y-2 list-disc list-inside">
+              <li><strong class="text-white">"What is my best move?"</strong> — Predicts the optimal next step.</li>
+              <li><strong class="text-white">"Analyze this position"</strong> — Explains piece dynamics and strategic targets.</li>
+              <li><strong class="text-white">"What is Black threatening?"</strong> — Pinpoints enemy attack vectors.</li>
+              <li><strong class="text-white">"Who is winning?"</strong> — Speaks centipawn evaluation score.</li>
+            </ul>
+          </div>
+
+          <div class="p-4 bg-slate-950 rounded-xl border border-slate-800 flex flex-col gap-2">
+            <h4 class="font-bold text-sm text-sky-400 flex items-center gap-1.5">
+              <span>✨</span> Visual Overlay Meanings:
+            </h4>
+            <ul class="text-xs text-slate-300 space-y-2">
+              <li class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500"></span>
+                <span><strong>Green Arrow:</strong> Engine Recommended Best Move.</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full bg-red-500 shadow-sm shadow-red-500"></span>
+                <span><strong>Red Dashed Arrow:</strong> Opponent Immediate Threat.</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full bg-amber-400"></span>
+                <span><strong>Amber Squares:</strong> Active Selected Piece & Destinations.</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: DECISION TREE VIEW -->
+    <div id="tab-tree" class="tab-content hidden max-w-5xl mx-auto flex flex-col gap-4">
+      <div class="bg-slate-900/80 p-6 rounded-2xl border border-slate-800 shadow-xl flex flex-col gap-4">
+        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+          <span>🌳</span> N-ary Minimax Decision Tree
+        </h2>
+        <div id="decision-tree-container" class="w-full"></div>
+      </div>
+    </div>
+
+    <!-- TAB 4: ONLINE MULTIPLAYER LOBBY -->
+    <div id="tab-lobby" class="tab-content hidden max-w-3xl mx-auto flex flex-col gap-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-slate-900/80 p-6 rounded-2xl border border-slate-800 shadow-xl flex flex-col gap-4">
+          <h3 class="text-lg font-bold text-white flex items-center gap-2">
+            <span>⚡</span> Create Online Match
+          </h3>
+          <div class="flex flex-col gap-3">
+            <div>
+              <label class="text-xs font-semibold text-slate-300 block mb-1">Your Name</label>
+              <input id="player-name-input" type="text" value="Player 1" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-pink-500" />
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-slate-300 block mb-1">Time Control</label>
+              <select id="time-control-select" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-pink-500">
+                <option value="1">1 min • Bullet</option>
+                <option value="3">3 min • Blitz</option>
+                <option value="5" selected>5 min • Rapid</option>
+                <option value="10">10 min • Classical</option>
+                <option value="0">Casual • Unlimited</option>
+              </select>
+            </div>
+            <button id="btn-create-room" class="mt-2 w-full py-2.5 bg-gradient-to-r from-pink-600 to-indigo-600 hover:from-pink-500 hover:to-indigo-500 rounded-xl text-xs font-bold text-white shadow-lg transition">
+              Create Match Room
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-slate-900/80 p-6 rounded-2xl border border-slate-800 shadow-xl flex flex-col gap-4">
+          <h3 class="text-lg font-bold text-white flex items-center gap-2">
+            <span>🔗</span> Join Existing Match
+          </h3>
+          <div class="flex flex-col gap-3">
+            <div>
+              <label class="text-xs font-semibold text-slate-300 block mb-1">Room Code</label>
+              <input id="join-code-input" type="text" placeholder="e.g. CHESS-A94K" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white font-mono uppercase tracking-wider focus:outline-none focus:border-sky-500" />
+            </div>
+            <button id="btn-join-room" class="mt-8 w-full py-2.5 bg-sky-600 hover:bg-sky-500 rounded-xl text-xs font-bold text-white shadow-lg transition">
+              Join Match
+            </button>
+            <div class="mt-4 pt-4 border-t border-slate-800 flex flex-col gap-2">
+              <span class="text-[11px] text-slate-400 font-semibold uppercase">Current Room Code:</span>
+              <div class="flex items-center gap-2">
+                <span id="current-room-badge" class="px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-pink-400 font-mono font-bold text-xs">NOT IN ROOM</span>
+                <button id="btn-copy-link" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs rounded-lg font-semibold">Copy Link</button>
+              </div>
+              <input id="room-share-url" type="hidden" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-slate-900/80 p-6 rounded-2xl border border-slate-800 shadow-xl flex flex-col gap-3">
+        <h4 class="text-sm font-bold text-white flex items-center gap-2">
+          <span>💬</span> Match Chat
+        </h4>
+        <div id="chat-messages" class="h-32 bg-slate-950 rounded-xl p-3 border border-slate-800 overflow-y-auto flex flex-col gap-1.5"></div>
+        <form id="chat-form" class="flex gap-2">
+          <input id="chat-input" type="text" placeholder="Type a message..." class="flex-1 px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-pink-500" />
+          <button type="submit" class="px-4 py-2 bg-pink-600 hover:bg-pink-500 text-white text-xs font-semibold rounded-xl transition">Send</button>
+        </form>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="chess.min.js"></script>
+  <script src="soundFx.js"></script>
+  <script src="minimax.js"></script>
+  <script src="coachAgent.js"></script>
+  <script src="voiceAgent.js"></script>
+  <script src="chessboard.js"></script>
+  <script src="decisionTree.js"></script>
+  <script src="multiplayer.js"></script>
+  <script src="app.js"></script>
+
+  <script>
+    lucide.createIcons();
+  </script>
+</body>
+</html>
