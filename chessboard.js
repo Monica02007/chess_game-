@@ -26,28 +26,24 @@ class ChessboardView {
     this.bestMoveArrow = null;
     this.threatArrow = null;
     this.lastClickTimestamp = 0;
+    this.activeAnimations = [];
 
     this.initDOM();
   }
 
   initDOM() {
     this.container.innerHTML = `
-      <div style="position:relative; width:100%; max-width:520px; aspect-ratio:1/1; border-radius:16px; overflow:hidden; box-shadow:0 25px 50px -12px rgba(0,0,0,0.5); border:4px solid #334155; background:#0f172a; user-select:none;">
+      <div id="board-frame" style="position:relative; width:100%; max-width:520px; aspect-ratio:1/1; border-radius:16px; overflow:hidden; box-shadow:0 25px 50px -12px rgba(0,0,0,0.5); border:4px solid #334155; background:#0f172a; user-select:none;">
         <div id="board-grid" style="display:grid; grid-template-columns:repeat(8, 12.5%); grid-template-rows:repeat(8, 12.5%); width:100%; height:100%;"></div>
-        <svg id="board-arrows" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:20;">
+        <div id="animation-layer" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:25; overflow:hidden;"></div>
+        <svg id="board-arrows" viewBox="0 0 100 100" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:20;">
           <defs>
-            <marker id="arrow-green" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 1 L 10 5 L 0 9 z" fill="#10b981" />
-            </marker>
-            <marker id="arrow-red" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 1 L 10 5 L 0 9 z" fill="#ef4444" />
-            </marker>
             <filter id="glow-green" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feGaussianBlur stdDeviation="1.5" result="blur" />
               <feComposite in="SourceGraphic" in2="blur" operator="over" />
             </filter>
             <filter id="glow-red" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feGaussianBlur stdDeviation="1.5" result="blur" />
               <feComposite in="SourceGraphic" in2="blur" operator="over" />
             </filter>
           </defs>
@@ -57,9 +53,25 @@ class ChessboardView {
     `;
 
     this.grid = document.getElementById('board-grid');
+    this.animationLayer = document.getElementById('animation-layer');
     this.arrowsLayer = document.getElementById('arrows-layer');
 
     this.renderSquares();
+  }
+
+  getSquareCoords(square) {
+    const fileIdx = square.charCodeAt(0) - 97;
+    const rankIdx = 8 - parseInt(square[1]);
+
+    const col = this.flipped ? 7 - fileIdx : fileIdx;
+    const row = this.flipped ? 7 - rankIdx : rankIdx;
+
+    return {
+      col,
+      row,
+      leftPct: col * 12.5,
+      topPct: row * 12.5
+    };
   }
 
   renderSquares() {
@@ -91,7 +103,7 @@ class ChessboardView {
           user-select: none;
           touch-action: manipulation;
           background-color: ${isLight ? '#cbd5e1' : '#334155'};
-          transition: background-color 100ms;
+          transition: background-color 150ms ease, box-shadow 150ms ease;
         `;
 
         if (f === 0) {
@@ -124,8 +136,10 @@ class ChessboardView {
     }
   }
 
-  updateBoard(game) {
+  updateBoard(game, options = {}) {
     if (!game) return;
+    const hideSquares = options.hideSquares || [];
+    const hideAll = options.hideAll || false;
     const board = game.board();
     const squares = this.grid.querySelectorAll('[data-square]');
 
@@ -135,7 +149,6 @@ class ChessboardView {
       const rankIdx = 8 - parseInt(square[1]);
       const piece = board[rankIdx][fileIdx];
 
-      const isLight = (sqDiv.style.order || 0) % 2 === 0;
       const f = square.charCodeAt(0) - 97;
       const r = 8 - parseInt(square[1]);
       const baseLight = (f + r) % 2 === 0;
@@ -156,32 +169,48 @@ class ChessboardView {
         sqDiv.style.backgroundColor = '#fbbf24'; // Amber Yellow
         sqDiv.style.boxShadow = 'inset 0 0 0 4px #d97706';
       }
+      // King in check highlight
+      else if (game.in_check() && piece && piece.type === 'k' && piece.color === game.turn()) {
+        sqDiv.style.backgroundColor = '#ef4444';
+        sqDiv.style.boxShadow = 'inset 0 0 0 4px #b91c1c';
+      }
+      // Predicted Best Move highlight (Origin & Destination)
+      else if (this.bestMoveArrow && (this.bestMoveArrow.from === square || this.bestMoveArrow.to === square)) {
+        if (this.bestMoveArrow.from === square) {
+          sqDiv.style.backgroundColor = baseLight ? 'rgba(52, 211, 153, 0.45)' : 'rgba(5, 150, 105, 0.45)';
+          sqDiv.style.boxShadow = 'inset 0 0 0 3px rgba(16, 185, 129, 0.9)';
+        } else {
+          sqDiv.style.backgroundColor = baseLight ? 'rgba(52, 211, 153, 0.6)' : 'rgba(16, 185, 129, 0.6)';
+          sqDiv.style.boxShadow = 'inset 0 0 0 3px rgba(52, 211, 153, 0.95)';
+        }
+      }
+      // Opponent Threat highlight
+      else if (this.threatArrow && (this.threatArrow.from === square || this.threatArrow.to === square)) {
+        sqDiv.style.backgroundColor = baseLight ? 'rgba(252, 165, 165, 0.45)' : 'rgba(185, 28, 28, 0.45)';
+        sqDiv.style.boxShadow = 'inset 0 0 0 2.5px rgba(239, 68, 68, 0.85)';
+      }
       // Last move highlight
       else if (this.lastMove && (this.lastMove.from === square || this.lastMove.to === square)) {
         sqDiv.style.backgroundColor = baseLight ? '#a7f3d0' : '#065f46';
       }
-      // King in check highlight
-      else if (game.in_check() && piece && piece.type === 'k' && piece.color === game.turn()) {
-        sqDiv.style.backgroundColor = '#ef4444';
-      }
 
       // Add Piece
-      if (piece) {
+      if (piece && !hideAll && !hideSquares.includes(square)) {
         const pieceKey = `${piece.color}${piece.type.toUpperCase()}`;
         const pWrapper = document.createElement('div');
         pWrapper.className = 'piece-wrapper';
-        pWrapper.style.cssText = 'width:84%; height:84%; display:flex; align-items:center; justify-content:center; pointer-events:none; user-select:none;';
+        pWrapper.style.cssText = 'width:84%; height:84%; display:flex; align-items:center; justify-content:center; pointer-events:none; user-select:none; transition:transform 120ms ease;';
         pWrapper.innerHTML = PIECE_SVGS[pieceKey] || '';
         sqDiv.appendChild(pWrapper);
       }
 
       // Add Legal Move Target Dots
-      if (this.legalMoves.includes(square)) {
+      if (!hideAll && this.legalMoves.includes(square)) {
         const isCapture = !!piece;
         const targetDiv = document.createElement('div');
         targetDiv.className = 'move-target-dot';
         if (isCapture) {
-          targetDiv.style.cssText = 'position:absolute; inset:4px; border-radius:9999px; border:4px solid #10b981; background:rgba(16,185,129,0.25); pointer-events:none;';
+          targetDiv.style.cssText = 'position:absolute; inset:4px; border-radius:9999px; border:4px solid #10b981; background:rgba(16,185,129,0.25); pointer-events:none; animation: dotPulse 1.5s infinite;';
         } else {
           targetDiv.style.cssText = 'position:absolute; width:18px; height:18px; border-radius:9999px; background:#10b981; border:2px solid #ffffff; box-shadow:0 0 10px #10b981; pointer-events:none;';
         }
@@ -190,6 +219,316 @@ class ChessboardView {
     });
 
     this.renderArrows();
+  }
+
+  showMatchStartBanner(whiteName = "You", blackName = "AI Opponent", subtitle = "Ready... Play!") {
+    const frame = this.container.querySelector('#board-frame');
+    if (!frame) return;
+
+    let banner = frame.querySelector('#board-match-banner');
+    if (banner) banner.remove();
+
+    banner = document.createElement('div');
+    banner.id = 'board-match-banner';
+    banner.style.cssText = `
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 40;
+      pointer-events: none;
+      background: radial-gradient(circle at center, rgba(15, 23, 42, 0.9) 0%, rgba(15, 23, 42, 0.6) 70%, rgba(15, 23, 42, 0.2) 100%);
+      backdrop-filter: blur(4px);
+      animation: bannerFadeInOut 1.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    `;
+
+    banner.innerHTML = `
+      <div style="transform: scale(0.9); animation: bannerPopIn 1.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 18px 26px; border-radius: 20px; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(244, 63, 94, 0.4); box-shadow: 0 25px 50px -12px rgba(0,0,0,0.9), 0 0 35px rgba(244,63,94,0.3);">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+          <span style="font-size: 16px;">⚔️</span>
+          <span style="font-size: 11px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase; color: #f43f5e;">Grandmaster Match</span>
+          <span style="font-size: 16px;">⚔️</span>
+        </div>
+        <div style="font-size: 18px; font-weight: 900; color: #ffffff; letter-spacing: -0.02em; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+          <span style="color:#ffffff;">${whiteName}</span>
+          <span style="color: #64748b; font-size: 13px; font-weight: 700;">VS</span>
+          <span style="color: #38bdf8;">${blackName}</span>
+        </div>
+        <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 14px; border-radius: 9999px; background: rgba(16, 185, 129, 0.18); border: 1px solid rgba(16, 185, 129, 0.4); font-size: 11px; font-weight: 700; color: #34d399;">
+          <span style="display: inline-block; width: 7px; height: 7px; border-radius: 9999px; background: #10b981; box-shadow: 0 0 10px #10b981;"></span>
+          ${subtitle}
+        </div>
+      </div>
+    `;
+
+    frame.appendChild(banner);
+
+    setTimeout(() => {
+      if (banner && banner.parentNode) banner.remove();
+    }, 1850);
+  }
+
+  playOpeningSequence(game, onFinish) {
+    if (!this.animationLayer) {
+      this.updateBoard(game);
+      if (onFinish) onFinish();
+      return;
+    }
+
+    // Cancel any running animations
+    this.activeAnimations.forEach(anim => {
+      try { anim.cancel(); } catch { }
+    });
+    this.activeAnimations = [];
+    this.animationLayer.innerHTML = '';
+
+    // Render empty grid squares
+    this.updateBoard(game, { hideAll: true });
+
+    // Collect initial pieces
+    const board = game.board();
+    const piecesToAnimate = [];
+
+    for (let r = 0; r < 8; r++) {
+      for (let f = 0; f < 8; f++) {
+        const piece = board[r][f];
+        if (piece) {
+          const square = `${String.fromCharCode(97 + f)}${8 - r}`;
+          const coords = this.getSquareCoords(square);
+          const pieceKey = `${piece.color}${piece.type.toUpperCase()}`;
+          const isPawn = piece.type === 'p';
+          const isWhite = piece.color === 'w';
+
+          piecesToAnimate.push({
+            square,
+            coords,
+            pieceKey,
+            isPawn,
+            isWhite,
+            fileIdx: f,
+            rankIdx: r
+          });
+        }
+      }
+    }
+
+    // Play fanfare & sound
+    window.soundFX.playGameStart();
+
+    // Show Match Opening Banner
+    const isAi = window.app && window.app.mode === 'ai';
+    const playerSide = window.app ? window.app.playerColor : 'w';
+    const whiteTitle = playerSide === 'w' ? 'You (White)' : (isAi ? 'Grandmaster AI' : 'Player 1');
+    const blackTitle = playerSide === 'b' ? 'You (Black)' : (isAi ? 'AI Opponent' : 'Player 2');
+    this.showMatchStartBanner(whiteTitle, blackTitle, "Game Opened • White to Move");
+
+    const animPromises = [];
+
+    piecesToAnimate.forEach((p) => {
+      const animEl = document.createElement('div');
+      animEl.className = 'animating-piece';
+      animEl.style.cssText = `
+        position: absolute;
+        width: 12.5%;
+        height: 12.5%;
+        left: ${p.coords.leftPct}%;
+        top: ${p.coords.topPct}%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        user-select: none;
+        will-change: transform, opacity;
+      `;
+
+      const inner = document.createElement('div');
+      inner.style.cssText = 'width:84%; height:84%; display:flex; align-items:center; justify-content:center;';
+      inner.innerHTML = PIECE_SVGS[p.pieceKey] || '';
+      animEl.appendChild(inner);
+
+      this.animationLayer.appendChild(animEl);
+
+      // Stagger timings:
+      // Black back-rank -> Black pawns -> White back-rank -> White pawns
+      let rankBaseDelay = 0;
+      if (!p.isWhite) {
+        rankBaseDelay = p.isPawn ? 120 : 30;
+      } else {
+        rankBaseDelay = p.isPawn ? 240 : 160;
+      }
+      const fileDelay = p.fileIdx * 30;
+      const totalDelay = rankBaseDelay + fileDelay;
+
+      // Drop from top or bottom
+      const startYOffset = p.isWhite ? 80 : -80;
+
+      const animation = animEl.animate([
+        {
+          transform: `translate3d(0, ${startYOffset}px, 0) scale(0.6) rotate(${p.fileIdx % 2 === 0 ? -8 : 8}deg)`,
+          opacity: 0
+        },
+        {
+          transform: `translate3d(0, -10px, 0) scale(1.12) rotate(0deg)`,
+          opacity: 0.95,
+          offset: 0.72
+        },
+        {
+          transform: `translate3d(0, 0, 0) scale(1) rotate(0deg)`,
+          opacity: 1
+        }
+      ], {
+        duration: 360,
+        delay: totalDelay,
+        easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+        fill: 'both'
+      });
+
+      this.activeAnimations.push(animation);
+
+      setTimeout(() => {
+        if (p.isPawn && (p.fileIdx === 3 || p.fileIdx === 4)) {
+          window.soundFX.playPieceDrop(p.fileIdx);
+        } else if (!p.isPawn && (p.fileIdx === 3 || p.fileIdx === 4)) {
+          window.soundFX.playPieceDrop(5);
+        }
+      }, totalDelay + 220);
+
+      const promise = new Promise((resolve) => {
+        animation.onfinish = () => resolve();
+        animation.oncancel = () => resolve();
+      });
+      animPromises.push(promise);
+    });
+
+    Promise.all(animPromises).then(() => {
+      this.animationLayer.innerHTML = '';
+      this.activeAnimations = [];
+      this.updateBoard(game);
+      if (onFinish) onFinish();
+    });
+  }
+
+  animateMove(game, move, onFinish) {
+    if (!move || !move.from || !move.to || !this.animationLayer) {
+      this.updateBoard(game);
+      if (onFinish) onFinish();
+      return;
+    }
+
+    // Cancel any currently running animations cleanly
+    this.activeAnimations.forEach(anim => {
+      try { anim.cancel(); } catch { }
+    });
+    this.activeAnimations = [];
+    this.animationLayer.innerHTML = '';
+
+    const movesToAnimate = [];
+
+    // Main moving piece
+    const movedPieceType = move.promotion ? move.promotion : move.piece;
+    const pieceKey = `${move.color}${movedPieceType.toUpperCase()}`;
+    movesToAnimate.push({
+      pieceKey: pieceKey,
+      from: move.from,
+      to: move.to
+    });
+
+    // Castling companion rook animation
+    const isCastling = (move.san === 'O-O' || move.san === 'O-O-O' || (move.piece === 'k' && Math.abs(move.from.charCodeAt(0) - move.to.charCodeAt(0)) > 1));
+    const hideSquares = [move.from, move.to];
+
+    if (isCastling) {
+      if (move.color === 'w') {
+        if (move.to === 'g1') { // Kingside White
+          movesToAnimate.push({ pieceKey: 'wR', from: 'h1', to: 'f1' });
+          hideSquares.push('h1', 'f1');
+        } else if (move.to === 'c1') { // Queenside White
+          movesToAnimate.push({ pieceKey: 'wR', from: 'a1', to: 'd1' });
+          hideSquares.push('a1', 'd1');
+        }
+      } else {
+        if (move.to === 'g8') { // Kingside Black
+          movesToAnimate.push({ pieceKey: 'bR', from: 'h8', to: 'f8' });
+          hideSquares.push('h8', 'f8');
+        } else if (move.to === 'c8') { // Queenside Black
+          movesToAnimate.push({ pieceKey: 'bR', from: 'a8', to: 'd8' });
+          hideSquares.push('a8', 'd8');
+        }
+      }
+    }
+
+    // Render board with moving pieces hidden on static grid
+    this.updateBoard(game, { hideSquares });
+
+    const animPromises = [];
+
+    movesToAnimate.forEach(m => {
+      const fromCoords = this.getSquareCoords(m.from);
+      const toCoords = this.getSquareCoords(m.to);
+
+      const animEl = document.createElement('div');
+      animEl.className = 'animating-piece';
+      animEl.style.cssText = `
+        position: absolute;
+        width: 12.5%;
+        height: 12.5%;
+        left: ${fromCoords.leftPct}%;
+        top: ${fromCoords.topPct}%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        user-select: none;
+        will-change: transform, filter;
+      `;
+
+      const innerWrapper = document.createElement('div');
+      innerWrapper.style.cssText = 'width:84%; height:84%; display:flex; align-items:center; justify-content:center;';
+      innerWrapper.innerHTML = PIECE_SVGS[m.pieceKey] || '';
+      animEl.appendChild(innerWrapper);
+
+      this.animationLayer.appendChild(animEl);
+
+      const deltaXPercent = (toCoords.col - fromCoords.col) * 100;
+      const deltaYPercent = (toCoords.row - fromCoords.row) * 100;
+
+      const animation = animEl.animate([
+        {
+          transform: 'translate3d(0, 0, 0) scale(1)',
+          filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))'
+        },
+        {
+          transform: `translate3d(${deltaXPercent * 0.7}%, ${deltaYPercent * 0.7}%, 0) scale(1.08)`,
+          filter: 'drop-shadow(0 14px 24px rgba(0,0,0,0.6))',
+          offset: 0.7
+        },
+        {
+          transform: `translate3d(${deltaXPercent}%, ${deltaYPercent}%, 0) scale(1)`,
+          filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))'
+        }
+      ], {
+        duration: 220,
+        easing: 'cubic-bezier(0.2, 0.9, 0.3, 1)',
+        fill: 'forwards'
+      });
+
+      this.activeAnimations.push(animation);
+
+      const promise = new Promise((resolve) => {
+        animation.onfinish = () => resolve();
+        animation.oncancel = () => resolve();
+      });
+      animPromises.push(promise);
+    });
+
+    Promise.all(animPromises).then(() => {
+      this.animationLayer.innerHTML = '';
+      this.activeAnimations = [];
+      this.updateBoard(game);
+      if (onFinish) onFinish();
+    });
   }
 
   handleSquareClick(square) {
@@ -247,74 +586,136 @@ class ChessboardView {
   setBestMoveArrow(from, to) {
     this.bestMoveArrow = from && to ? { from, to } : null;
     this.renderArrows();
+    if (window.app && window.app.game) {
+      this.updateBoard(window.app.game);
+    }
   }
 
   setThreatArrow(from, to) {
     this.threatArrow = from && to ? { from, to } : null;
     this.renderArrows();
+    if (window.app && window.app.game) {
+      this.updateBoard(window.app.game);
+    }
   }
 
   clearArrows() {
     this.bestMoveArrow = null;
     this.threatArrow = null;
     this.renderArrows();
+    if (window.app && window.app.game) {
+      this.updateBoard(window.app.game);
+    }
   }
 
   getSquareCenter(square) {
+    if (!square || square.length < 2) return { x: 50, y: 50 };
     const fileIdx = square.charCodeAt(0) - 97;
     const rankIdx = 8 - parseInt(square[1]);
 
     const col = this.flipped ? 7 - fileIdx : fileIdx;
     const row = this.flipped ? 7 - rankIdx : rankIdx;
 
-    const step = 100 / 8;
+    const step = 100 / 8; // 12.5
     return {
       x: (col + 0.5) * step,
       y: (row + 0.5) * step
     };
   }
 
+  createArrowSVG(fromSquare, toSquare, color = '#10b981', isDashed = false) {
+    if (!fromSquare || !toSquare) return null;
+    const p1 = this.getSquareCenter(fromSquare);
+    const p2 = this.getSquareCenter(toSquare);
+    if (!p1 || !p2) return null;
+
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist === 0) return null;
+
+    const angle = Math.atan2(dy, dx);
+
+    // Arrowhead geometry configuration in viewBox units (0..100)
+    const headLen = 4.2;
+    const headWidth = 3.6;
+
+    // Start slightly offset from center of from square so piece center is visible
+    const startOffset = 2.0;
+    const sx = p1.x + startOffset * Math.cos(angle);
+    const sy = p1.y + startOffset * Math.sin(angle);
+
+    // Line end stops where arrowhead base meets
+    const ex = p2.x - (headLen * 0.7) * Math.cos(angle);
+    const ey = p2.y - (headLen * 0.7) * Math.sin(angle);
+
+    // Triangle base center and perpendicular vectors
+    const baseX = p2.x - headLen * Math.cos(angle);
+    const baseY = p2.y - headLen * Math.sin(angle);
+    const perpX = (headWidth / 2) * Math.sin(angle);
+    const perpY = (headWidth / 2) * -Math.cos(angle);
+
+    const tipX = p2.x;
+    const tipY = p2.y;
+    const c1X = baseX + perpX;
+    const c1Y = baseY + perpY;
+    const c2X = baseX - perpX;
+    const c2Y = baseY - perpY;
+
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('class', 'chess-arrow-group');
+
+    // Origin base dot
+    const baseDot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    baseDot.setAttribute('cx', `${p1.x}`);
+    baseDot.setAttribute('cy', `${p1.y}`);
+    baseDot.setAttribute('r', '1.8');
+    baseDot.setAttribute('fill', color);
+    baseDot.setAttribute('opacity', '0.9');
+    g.appendChild(baseDot);
+
+    // Main shaft line
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', `${sx}`);
+    line.setAttribute('y1', `${sy}`);
+    line.setAttribute('x2', `${ex}`);
+    line.setAttribute('y2', `${ey}`);
+    line.setAttribute('stroke', color);
+    line.setAttribute('stroke-width', '2.5');
+    line.setAttribute('stroke-linecap', 'round');
+    if (isDashed) {
+      line.setAttribute('stroke-dasharray', '2.5, 1.5');
+    }
+    g.appendChild(line);
+
+    // Arrowhead polygon
+    const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    poly.setAttribute('points', `${tipX},${tipY} ${c1X},${c1Y} ${c2X},${c2Y}`);
+    poly.setAttribute('fill', color);
+    g.appendChild(poly);
+
+    if (color === '#10b981') {
+      g.setAttribute('filter', 'url(#glow-green)');
+    } else {
+      g.setAttribute('filter', 'url(#glow-red)');
+    }
+    g.style.opacity = '0.95';
+
+    return g;
+  }
+
   renderArrows() {
     if (!this.arrowsLayer) return;
     this.arrowsLayer.innerHTML = '';
 
-    if (this.bestMoveArrow) {
-      const p1 = this.getSquareCenter(this.bestMoveArrow.from);
-      const p2 = this.getSquareCenter(this.bestMoveArrow.to);
-
-      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-      line.setAttribute('x1', `${p1.x}%`);
-      line.setAttribute('y1', `${p1.y}%`);
-      line.setAttribute('x2', `${p2.x}%`);
-      line.setAttribute('y2', `${p2.y}%`);
-      line.setAttribute('stroke', '#10b981');
-      line.setAttribute('stroke-width', '6');
-      line.setAttribute('stroke-linecap', 'round');
-      line.setAttribute('marker-end', 'url(#arrow-green)');
-      line.setAttribute('filter', 'url(#glow-green)');
-      line.setAttribute('opacity', '0.9');
-
-      this.arrowsLayer.appendChild(line);
+    if (this.threatArrow) {
+      const g = this.createArrowSVG(this.threatArrow.from, this.threatArrow.to, '#ef4444', true);
+      if (g) this.arrowsLayer.appendChild(g);
     }
 
-    if (this.threatArrow) {
-      const p1 = this.getSquareCenter(this.threatArrow.from);
-      const p2 = this.getSquareCenter(this.threatArrow.to);
-
-      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-      line.setAttribute('x1', `${p1.x}%`);
-      line.setAttribute('y1', `${p1.y}%`);
-      line.setAttribute('x2', `${p2.x}%`);
-      line.setAttribute('y2', `${p2.y}%`);
-      line.setAttribute('stroke', '#ef4444');
-      line.setAttribute('stroke-width', '5');
-      line.setAttribute('stroke-dasharray', '6 3');
-      line.setAttribute('stroke-linecap', 'round');
-      line.setAttribute('marker-end', 'url(#arrow-red)');
-      line.setAttribute('filter', 'url(#glow-red)');
-      line.setAttribute('opacity', '0.85');
-
-      this.arrowsLayer.appendChild(line);
+    if (this.bestMoveArrow) {
+      const g = this.createArrowSVG(this.bestMoveArrow.from, this.bestMoveArrow.to, '#10b981', false);
+      if (g) this.arrowsLayer.appendChild(g);
     }
   }
 

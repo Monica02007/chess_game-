@@ -33,6 +33,13 @@ class App {
     this.startSoloClock();
     this.runAnalysis(false); // quiet initial analysis
 
+    // Cinematic Match Opening Animation on Initial Launch
+    setTimeout(() => {
+      if (window.chessboardView && typeof window.chessboardView.playOpeningSequence === 'function') {
+        window.chessboardView.playOpeningSequence(this.game);
+      }
+    }, 150);
+
     const canvas = document.getElementById('voice-waveform');
     if (canvas && window.voiceAgent) window.voiceAgent.setVisualizerCanvas(canvas);
 
@@ -128,10 +135,31 @@ class App {
       resetBtn.addEventListener('click', () => this.resetGame());
     }
 
-    // AI Move Hint Button
+    // Replay Game Opening Animation Button
+    const replayOpeningBtn = document.getElementById('btn-replay-opening');
+    if (replayOpeningBtn) {
+      replayOpeningBtn.addEventListener('click', () => {
+        if (window.chessboardView && typeof window.chessboardView.playOpeningSequence === 'function') {
+          window.chessboardView.playOpeningSequence(this.game);
+        }
+      });
+    }
+
+    // Predict Best Move Buttons (Quick & Sidebar)
+    const quickPredictBtn = document.getElementById('btn-ask-aria-quick');
+    if (quickPredictBtn) {
+      quickPredictBtn.addEventListener('click', () => this.predictBestMove());
+    }
+
     const hintBtn = document.getElementById('btn-hint-move');
     if (hintBtn) {
       hintBtn.addEventListener('click', () => this.predictBestMove());
+    }
+
+    // Play Recommended Move Button
+    const quickPlayBtn = document.getElementById('btn-play-recommended-quick');
+    if (quickPlayBtn) {
+      quickPlayBtn.addEventListener('click', () => this.playRecommendedMove());
     }
 
     // Multiplayer Create Room
@@ -220,7 +248,9 @@ class App {
   }
 
   predictBestMove() {
-    const analysis = window.chessEngine.findBestMove(this.game, this.searchDepth);
+    if (!this.game || this.game.game_over()) return;
+    const depth = Math.max(this.searchDepth || 2, 2);
+    const analysis = window.chessEngine.findBestMove(this.game, depth);
     this.currentAnalysis = analysis;
 
     if (analysis && analysis.bestMove) {
@@ -228,6 +258,35 @@ class App {
       const explanation = window.coachAgent.generateMoveExplanation(this.game, analysis);
       this.updateCoachUI(explanation);
       window.voiceAgent.speak(explanation.spoken);
+
+      const threat = window.chessEngine.findOpponentThreat(this.game);
+      if (threat && threat.threatMove) {
+        window.chessboardView.setThreatArrow(threat.threatMove.from, threat.threatMove.to);
+      } else {
+        window.chessboardView.threatArrow = null;
+        window.chessboardView.renderArrows();
+      }
+
+      if (window.decisionTree) {
+        window.decisionTree.render(analysis.searchTree);
+      }
+    }
+  }
+
+  playRecommendedMove() {
+    if (!this.game || this.game.game_over()) return;
+    if (!this.isMyTurn()) {
+      window.voiceAgent.speak("Please wait for your opponent's turn to complete.");
+      return;
+    }
+
+    if (!this.currentAnalysis || !this.currentAnalysis.bestMove) {
+      this.predictBestMove();
+    }
+
+    if (this.currentAnalysis && this.currentAnalysis.bestMove) {
+      const { from, to, promotion } = this.currentAnalysis.bestMove;
+      this.onUserMove(from, to, promotion || 'q');
     }
   }
 
@@ -292,12 +351,18 @@ class App {
     window.chessboardView.lastMove = null;
     window.chessboardView.clearArrows();
 
-    this.updateBoardView();
+    // Play Grandmaster Opening Piece Assembly Animation
+    if (window.chessboardView && typeof window.chessboardView.playOpeningSequence === 'function') {
+      window.chessboardView.playOpeningSequence(this.game);
+    } else {
+      this.updateBoardView();
+    }
+
+    this.updateOpeningBookUI();
     this.runAnalysis(false);
-    window.soundFX.playGameStart();
 
     if (this.mode === 'ai' && this.playerColor === 'b') {
-      setTimeout(() => this.triggerAIMove(), 500);
+      setTimeout(() => this.triggerAIMove(), 700);
     }
   }
 
@@ -392,7 +457,7 @@ class App {
     window.chessboardView.lastMove = { from, to };
     this.moveHistory.push(move);
 
-    this.updateBoardView();
+    this.updateBoardView(move);
     this.runAnalysis(false); // quiet update
 
     if (this.isMultiplayer()) {
@@ -448,7 +513,7 @@ class App {
             window.chessboardView.lastMove = { from: aiMove.from, to: aiMove.to };
             this.moveHistory.push(aiMove);
 
-            this.updateBoardView();
+            this.updateBoardView(aiMove);
             this.runAnalysis(false); // quiet update
 
             // Brief voice announcement of AI move
@@ -487,7 +552,7 @@ class App {
 
     if (msg.is_check) window.soundFX.playCheck();
 
-    this.updateBoardView();
+    this.updateBoardView(msg.move || null);
     this.runAnalysis(false);
   }
 
@@ -549,10 +614,15 @@ class App {
     }
   }
 
-  updateBoardView() {
-    window.chessboardView.updateBoard(this.game);
+  updateBoardView(animatedMove = null) {
+    if (animatedMove && window.chessboardView && typeof window.chessboardView.animateMove === 'function') {
+      window.chessboardView.animateMove(this.game, animatedMove);
+    } else if (window.chessboardView) {
+      window.chessboardView.updateBoard(this.game);
+    }
     this.updateMoveHistoryUI();
     this.updateCapturedUI();
+    this.updateOpeningBookUI();
 
     const turnText = document.getElementById('turn-indicator');
     if (turnText) {
@@ -562,6 +632,19 @@ class App {
         <span>${isWhite ? 'White' : 'Black'} to Move</span>
       `;
     }
+  }
+
+  updateOpeningBookUI() {
+    if (!window.OpeningExplorer) return;
+    const openingInfo = window.OpeningExplorer.identifyOpening(this.moveHistory);
+
+    const nameEl = document.getElementById('opening-name-text');
+    const ecoEl = document.getElementById('opening-eco-badge');
+    const tipEl = document.getElementById('opening-tip-text');
+
+    if (nameEl) nameEl.innerText = openingInfo.name;
+    if (ecoEl) ecoEl.innerText = openingInfo.eco;
+    if (tipEl) tipEl.innerText = openingInfo.tip;
   }
 
   updateMoveHistoryUI() {

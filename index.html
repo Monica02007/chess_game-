@@ -35,6 +35,34 @@
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
     ::-webkit-scrollbar-thumb { background: rgba(71, 85, 105, 0.8); border-radius: 9999px; }
+
+    @keyframes dotPulse {
+      0%, 100% { transform: scale(1); opacity: 0.9; }
+      50% { transform: scale(1.08); opacity: 0.6; }
+    }
+
+    @keyframes bannerFadeInOut {
+      0% { opacity: 0; }
+      15% { opacity: 1; }
+      80% { opacity: 1; }
+      100% { opacity: 0; pointer-events: none; }
+    }
+
+    @keyframes bannerPopIn {
+      0% { transform: scale(0.7) translateY(20px); opacity: 0; }
+      20% { transform: scale(1.04) translateY(-2px); opacity: 1; }
+      30% { transform: scale(1) translateY(0); }
+      80% { transform: scale(1) translateY(0); opacity: 1; }
+      100% { transform: scale(0.95) translateY(-10px); opacity: 0; }
+    }
+
+    .piece-wrapper {
+      transform-origin: center center;
+    }
+
+    .animating-piece {
+      transform-origin: center center;
+    }
   </style>
 </head>
 
@@ -122,6 +150,23 @@
             <div id="clock-black" class="px-3 py-1 bg-slate-950 rounded-lg font-mono text-base font-bold text-emerald-400 border border-slate-800">
               5:00
             </div>
+          </div>
+
+          <!-- Opening Theory Status Banner -->
+          <div id="opening-book-banner" class="w-full flex items-center justify-between px-3.5 py-2 mb-2 bg-slate-900/90 backdrop-blur rounded-xl border border-slate-800 text-xs shadow-sm transition-all">
+            <div class="flex items-center gap-2 overflow-hidden flex-1 min-w-0 mr-2">
+              <span class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono font-bold text-[10px] uppercase tracking-wider shrink-0 border border-amber-500/30">📖 Opening</span>
+              <div class="flex flex-col min-w-0">
+                <div class="flex items-center gap-1.5">
+                  <span id="opening-name-text" class="font-bold text-slate-100 truncate text-xs">Standard Initial Setup</span>
+                  <span id="opening-eco-badge" class="px-1 py-0.2 rounded bg-slate-800 text-slate-400 font-mono text-[9px]">A00</span>
+                </div>
+                <span id="opening-tip-text" class="text-[10px] text-slate-400 truncate">Control the central squares (e4, d4, e5, d5) & develop minor pieces.</span>
+              </div>
+            </div>
+            <button id="btn-replay-opening" title="Play Game Opening Animation" class="px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-pink-600/80 to-purple-600/80 hover:from-pink-500 hover:to-purple-500 text-white font-bold text-[11px] flex items-center gap-1.5 shrink-0 transition shadow-sm cursor-pointer">
+              <span>🎬</span> Intro
+            </button>
           </div>
 
           <!-- Board Container -->
@@ -390,6 +435,7 @@
 
   <script src="chess.min.js"></script>
   <script src="soundFx.js"></script>
+  <script src="openings.js"></script>
   <script src="minimax.js"></script>
   <script src="coachAgent.js"></script>
   <script src="voiceAgent.js"></script>

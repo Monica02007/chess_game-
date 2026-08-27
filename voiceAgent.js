@@ -186,7 +186,7 @@ class VoiceAgent {
   handleVoiceCommand(transcript) {
     if (!window.app || !window.app.game) return;
     const game = window.app.game;
-    const analysis = window.app.currentAnalysis;
+    const analysis = window.app.currentAnalysis || (window.chessEngine ? window.chessEngine.findBestMove(game, 2) : null);
     const answer = window.coachAgent ? window.coachAgent.answerVoiceQuery(transcript, game, analysis) : { speech: "Analyzing position." };
 
     this.speak(answer.speech);
@@ -198,6 +198,10 @@ class VoiceAgent {
 
     if (answer.action === 'highlight_best_move' && answer.data && window.chessboardView) {
       window.chessboardView.setBestMoveArrow(answer.data.from, answer.data.to);
+    } else if (answer.action === 'highlight_threat' && answer.data && window.chessboardView) {
+      if (answer.data.threatMove) {
+        window.chessboardView.setThreatArrow(answer.data.threatMove.from, answer.data.threatMove.to);
+      }
     }
   }
 
