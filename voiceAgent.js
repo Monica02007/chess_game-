@@ -184,9 +184,10 @@ class VoiceAgent {
   }
 
   handleVoiceCommand(transcript) {
+    if (!window.app || !window.app.game) return;
     const game = window.app.game;
     const analysis = window.app.currentAnalysis;
-    const answer = window.coachAgent.answerVoiceQuery(transcript, game, analysis);
+    const answer = window.coachAgent ? window.coachAgent.answerVoiceQuery(transcript, game, analysis) : { speech: "Analyzing position." };
 
     this.speak(answer.speech);
 
@@ -195,7 +196,7 @@ class VoiceAgent {
       voiceCardText.innerHTML = `<strong>You asked:</strong> "${transcript}"<br><br><strong>Aria (Lady Coach):</strong> ${answer.speech}`;
     }
 
-    if (answer.action === 'highlight_best_move' && answer.data) {
+    if (answer.action === 'highlight_best_move' && answer.data && window.chessboardView) {
       window.chessboardView.setBestMoveArrow(answer.data.from, answer.data.to);
     }
   }

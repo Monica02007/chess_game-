@@ -148,11 +148,11 @@
             
             <!-- Quick Action Row -->
             <div class="flex items-center gap-2">
-              <button id="btn-ask-aria-quick" onclick="window.app.predictBestMove()" class="flex-1 py-2.5 px-3 bg-gradient-to-r from-pink-600 via-rose-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-pink-600/20 transition flex items-center justify-center gap-1.5">
+              <button id="btn-ask-aria-quick" class="flex-1 py-2.5 px-3 bg-gradient-to-r from-pink-600 via-rose-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-pink-600/20 transition flex items-center justify-center gap-1.5 cursor-pointer">
                 <span>🔮</span> Predict Best Move
               </button>
               
-              <button id="btn-play-recommended-quick" onclick="if(window.app.currentAnalysis && window.app.currentAnalysis.bestMove && window.app.isMyTurn()){ window.app.onUserMove(window.app.currentAnalysis.bestMove.from, window.app.currentAnalysis.bestMove.to); }" class="flex-1 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/20 transition flex items-center justify-center gap-1.5">
+              <button id="btn-play-recommended-quick" class="flex-1 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/20 transition flex items-center justify-center gap-1.5 cursor-pointer">
                 <span>▶️</span> Play Recommended Move
               </button>
             </div>

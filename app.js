@@ -2,6 +2,7 @@
 
 class App {
   constructor() {
+    window.app = this;
     this.game = new Chess();
     this.mode = 'ai';
     this.playerColor = 'w';
@@ -33,9 +34,9 @@ class App {
     this.runAnalysis(false); // quiet initial analysis
 
     const canvas = document.getElementById('voice-waveform');
-    if (canvas) window.voiceAgent.setVisualizerCanvas(canvas);
+    if (canvas && window.voiceAgent) window.voiceAgent.setVisualizerCanvas(canvas);
 
-    window.multiplayerClient.connect();
+    if (window.multiplayerClient) window.multiplayerClient.connect();
   }
 
   bindEvents() {
@@ -49,11 +50,11 @@ class App {
 
     // Voice Mic button
     const micBtn = document.getElementById('btn-voice-mic');
-    if (micBtn) {
+    if (micBtn && window.voiceAgent) {
       micBtn.addEventListener('click', () => window.voiceAgent.toggleListening());
     }
 
-    // Explicit Predict / Ask Aria Best Move
+    // Explicit Predict / Ask Aria Best Move buttons (both quick and standard)
     const askAriaBtn = document.getElementById('btn-ask-aria');
     if (askAriaBtn) {
       askAriaBtn.addEventListener('click', () => {
@@ -61,10 +62,27 @@ class App {
       });
     }
 
-    // Auto Play Recommended Move Button
+    const askAriaQuickBtn = document.getElementById('btn-ask-aria-quick');
+    if (askAriaQuickBtn) {
+      askAriaQuickBtn.addEventListener('click', () => {
+        this.predictBestMove();
+      });
+    }
+
+    // Auto Play Recommended Move Buttons
     const playRecBtn = document.getElementById('btn-play-recommended');
     if (playRecBtn) {
       playRecBtn.addEventListener('click', () => {
+        if (this.currentAnalysis && this.currentAnalysis.bestMove && this.isMyTurn()) {
+          const m = this.currentAnalysis.bestMove;
+          this.onUserMove(m.from, m.to);
+        }
+      });
+    }
+
+    const playRecQuickBtn = document.getElementById('btn-play-recommended-quick');
+    if (playRecQuickBtn) {
+      playRecQuickBtn.addEventListener('click', () => {
         if (this.currentAnalysis && this.currentAnalysis.bestMove && this.isMyTurn()) {
           const m = this.currentAnalysis.bestMove;
           this.onUserMove(m.from, m.to);
@@ -705,14 +723,22 @@ class App {
   }
 }
 
-window.addEventListener('DOMContentLoaded', () => {
-  window.app = new App();
+function initApp() {
+  if (!window.app) {
+    window.app = new App();
 
-  const params = new URLSearchParams(window.location.search);
-  const roomId = params.get('room');
-  if (roomId) {
-    setTimeout(() => {
-      window.multiplayerClient.joinRoom(roomId, 'Online Challenger');
-    }, 500);
+    const params = new URLSearchParams(window.location.search);
+    const roomId = params.get('room');
+    if (roomId && window.multiplayerClient) {
+      setTimeout(() => {
+        window.multiplayerClient.joinRoom(roomId, 'Online Challenger');
+      }, 500);
+    }
   }
-});
+}
+
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', initApp);
+} else {
+  initApp();
+}

@@ -122,34 +122,50 @@ class MultiplayerClient {
 
       // Flip board if player is black
       if (this.myRole === 'black') {
-        window.chessboardView.flipped = true;
-        window.chessboardView.renderSquares();
+        if (window.chessboardView) {
+          window.chessboardView.flipped = true;
+          window.chessboardView.renderSquares();
+        }
       } else {
-        window.chessboardView.flipped = false;
-        window.chessboardView.renderSquares();
+        if (window.chessboardView) {
+          window.chessboardView.flipped = false;
+          window.chessboardView.renderSquares();
+        }
       }
 
-      window.app.onRoomJoined(this.roomData, this.myRole);
-      window.soundFX.playGameStart();
+      if (window.app && typeof window.app.onRoomJoined === 'function') {
+        window.app.onRoomJoined(this.roomData, this.myRole);
+      }
+      if (window.soundFX && typeof window.soundFX.playGameStart === 'function') {
+        window.soundFX.playGameStart();
+      }
     }
 
     else if (msg.type === 'room_updated') {
       this.roomData = msg.room;
-      window.app.updateRoomUI(this.roomData);
+      if (window.app && typeof window.app.updateRoomUI === 'function') {
+        window.app.updateRoomUI(this.roomData);
+      }
     }
 
     else if (msg.type === 'move_made') {
       this.roomData = msg.room;
-      window.app.onRemoteMove(msg);
+      if (window.app && typeof window.app.onRemoteMove === 'function') {
+        window.app.onRemoteMove(msg);
+      }
     }
 
     else if (msg.type === 'game_over') {
       this.roomData = msg.room;
-      window.app.onGameOver(msg);
+      if (window.app && typeof window.app.onGameOver === 'function') {
+        window.app.onGameOver(msg);
+      }
     }
 
     else if (msg.type === 'draw_offered') {
-      window.app.showDrawOfferModal(msg.offered_by);
+      if (window.app && typeof window.app.showDrawOfferModal === 'function') {
+        window.app.showDrawOfferModal(msg.offered_by);
+      }
     }
 
     else if (msg.type === 'draw_declined') {
@@ -159,16 +175,22 @@ class MultiplayerClient {
     else if (msg.type === 'rematch_started') {
       this.myRole = msg.role;
       this.roomData = msg.room;
-      window.app.onRematchStarted(this.roomData, this.myRole);
+      if (window.app && typeof window.app.onRematchStarted === 'function') {
+        window.app.onRematchStarted(this.roomData, this.myRole);
+      }
     }
 
     else if (msg.type === 'chat_broadcast') {
-      window.app.appendChatMessage(msg);
+      if (window.app && typeof window.app.appendChatMessage === 'function') {
+        window.app.appendChatMessage(msg);
+      }
     }
 
     else if (msg.type === 'player_disconnected') {
       this.roomData = msg.room;
-      window.app.updateRoomUI(this.roomData);
+      if (window.app && typeof window.app.updateRoomUI === 'function') {
+        window.app.updateRoomUI(this.roomData);
+      }
     }
 
     else if (msg.type === 'error') {
@@ -186,7 +208,9 @@ class MultiplayerClient {
         } else if (turn === 'b' && this.roomData.black_player) {
           this.blackTime = Math.max(0, this.blackTime - 1);
         }
-        window.app.updateClockDisplay(this.whiteTime, this.blackTime);
+        if (window.app && typeof window.app.updateClockDisplay === 'function') {
+          window.app.updateClockDisplay(this.whiteTime, this.blackTime);
+        }
       }
     }, 1000);
   }

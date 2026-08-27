@@ -195,13 +195,15 @@ class ChessboardView {
   handleSquareClick(square) {
     console.log("👉 User tapped square:", square);
 
-    if (window.app.isSpectator()) return;
-    if (!window.app.isMyTurn()) {
+    if (!window.app) return;
+    if (window.app.isSpectator && window.app.isSpectator()) return;
+    if (!window.app.isMyTurn || !window.app.isMyTurn()) {
       console.log("⚠️ Not your turn or AI is calculating!");
       return;
     }
 
     const game = window.app.game;
+    if (!game) return;
 
     // 1. If a piece is ALREADY selected
     if (this.selectedSquare) {
@@ -319,6 +321,8 @@ class ChessboardView {
   flip() {
     this.flipped = !this.flipped;
     this.renderSquares();
-    this.updateBoard(window.app.game);
+    if (window.app && window.app.game) {
+      this.updateBoard(window.app.game);
+    }
   }
 }

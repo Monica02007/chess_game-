@@ -10,9 +10,9 @@ class DecisionTreeVisualizer {
     this.currentTree = treeData;
     if (!this.container || !treeData) return;
 
-    const totalNodes = window.chessEngine.nodesEvaluated || 0;
-    const prunedNodes = window.chessEngine.nodesPruned || 0;
-    const duration = window.app.currentAnalysis?.durationMs || 0;
+    const totalNodes = window.chessEngine ? window.chessEngine.nodesEvaluated : 0;
+    const prunedNodes = window.chessEngine ? window.chessEngine.nodesPruned : 0;
+    const duration = window.app && window.app.currentAnalysis ? (window.app.currentAnalysis.durationMs || 0) : 0;
 
     let html = `
       <div class="flex flex-col gap-4">
